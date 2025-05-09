@@ -16,7 +16,7 @@ bot = Bot(token=TELEGRAM_BOT_TOKEN)
 
 # ======================= تابع دریافت داده ======================
 def fetch_doge_data():
-    url = f'https://api.coingecko.com/api/v3/coins/{SYMBOL}/market_chart?vs_currency={CURRENCY}&days=1&interval=daily'
+    url = f'https://api.coingecko.com/api/v3/coins/{SYMBOL}/market_chart?vs_currency={CURRENCY}&days=30&interval=hourly'
     response = requests.get(url)
     data = response.json()
 
