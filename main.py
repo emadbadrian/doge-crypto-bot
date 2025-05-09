@@ -9,8 +9,7 @@ from telegram import Bot
 # ---------- تنظیمات ----------
 TOKEN = '7795930019:AAF7HXcw1iPyYc175yvNz4csvQjZz8tt9jI'
 CHAT_ID = '34776308'
-CMC_API_KEY = '7fa3b3bb-7d34-49e6-9c95-be070c350e35'
-SYMBOL = 'DOGE'
+SYMBOL = 'DOGEUSDT'
 INTERVAL = '5m'
 LIMIT = 100
 SLEEP_INTERVAL = 300  # هر ۵ دقیقه چک کن
@@ -19,31 +18,28 @@ SLEEP_INTERVAL = 300  # هر ۵ دقیقه چک کن
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# ---------- گرفتن داده ----------
+# ---------- گرفتن داده از Binance ----------
 def fetch_data():
-    url = f'https://pro-api.coinmarketcap.com/v1/cryptocurrency/ohlcv/historical'
+    url = f'https://api.binance.com/api/v3/klines'
     params = {
         'symbol': SYMBOL,
         'interval': INTERVAL,
-        'count': LIMIT
+        'limit': LIMIT
     }
-    headers = {'X-CMC_PRO_API_KEY': CMC_API_KEY}
-    response = requests.get(url, params=params, headers=headers)
-    data = response.json()
-
     try:
-        quotes = data['data']['quotes']
-        df = pd.DataFrame([{
-            'time': q['timestamp'],
-            'open': float(q['quote']['USD']['open']),
-            'high': float(q['quote']['USD']['high']),
-            'low': float(q['quote']['USD']['low']),
-            'close': float(q['quote']['USD']['close']),
-            'volume': float(q['quote']['USD']['volume'])
-        } for q in quotes])
+        response = requests.get(url, params=params)
+        data = response.json()
+        df = pd.DataFrame(data, columns=[
+            'open_time', 'open', 'high', 'low', 'close', 'volume',
+            'close_time', 'quote_asset_volume', 'number_of_trades',
+            'taker_buy_base_asset_volume', 'taker_buy_quote_asset_volume', 'ignore'
+        ])
+        df = df[['open_time', 'open', 'high', 'low', 'close', 'volume']]
+        df.columns = ['time', 'open', 'high', 'low', 'close', 'volume']
+        df = df.astype(float)
         return df
     except Exception as e:
-        logger.error(f'❌ خطا در تحلیل: {e}')
+        logger.error(f'❌ خطا در دریافت داده: {e}')
         return None
 
 # ---------- تحلیل ----------
