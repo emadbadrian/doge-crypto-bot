@@ -1,6 +1,6 @@
 import ccxt
 import pandas as pd
-import talib
+import ta
 import time
 import logging
 from telegram import Bot
@@ -26,11 +26,13 @@ def analyze():
         df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
         df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
 
-        # محاسبه اندیکاتورها
-        df['RSI'] = talib.RSI(df['close'], timeperiod=14)
-        df['MACD'], df['MACD_signal'], _ = talib.MACD(df['close'], fastperiod=12, slowperiod=26, signalperiod=9)
-        df['MA20'] = talib.SMA(df['close'], timeperiod=20)
-        df['MA50'] = talib.SMA(df['close'], timeperiod=50)
+        # محاسبه اندیکاتورها با ta
+        df['RSI'] = ta.momentum.RSIIndicator(df['close']).rsi()
+        macd = ta.trend.MACD(df['close'])
+        df['MACD'] = macd.macd()
+        df['MACD_signal'] = macd.macd_signal()
+        df['MA20'] = df['close'].rolling(window=20).mean()
+        df['MA50'] = df['close'].rolling(window=50).mean()
 
         latest = df.iloc[-1]
 
@@ -41,10 +43,10 @@ def analyze():
         signal += f"MA20: {latest['MA20']:.4f}, MA50: {latest['MA50']:.4f} => {'روند صعودی' if latest['MA20'] > latest['MA50'] else 'روند نزولی'}"
 
         bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=signal)
-        logging.info("پیام ارسال شد")
+        logging.info("✅ پیام ارسال شد")
 
     except Exception as e:
-        logging.error(f"خطا در تحلیل: {e}")
+        logging.error(f"❌ خطا در تحلیل: {e}")
 
 # ======================= اجرای مداوم =====================
 if __name__ == '__main__':
@@ -52,3 +54,4 @@ if __name__ == '__main__':
     while True:
         analyze()
         time.sleep(INTERVAL)
+
