@@ -1,45 +1,42 @@
-import ccxt
+import requests
 import pandas as pd
-import ta
 import time
 import logging
 from telegram import Bot
 
 # ======================= تنظیمات =========================
 TELEGRAM_BOT_TOKEN = 'YOUR_TELEGRAM_BOT_TOKEN'
-TELEGRAM_CHAT_ID = '34776308'
-SYMBOL = 'DOGE/USDT'
-TIMEFRAME = '5m'
-CANDLE_LIMIT = 100
+TELEGRAM_CHAT_ID = 'YOUR_TELEGRAM_CHAT_ID'
+SYMBOL = 'dogecoin'
+CURRENCY = 'usd'
 INTERVAL = 300  # هر 300 ثانیه = 5 دقیقه یکبار تحلیل انجام بشه
 
-# ======================= ربات تلگرام ======================
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 
-# ======================= Binance API =====================
-exchange = ccxt.binance()
+# ======================= تابع دریافت داده ======================
+def fetch_doge_data():
+    url = f'https://api.coingecko.com/api/v3/coins/{SYMBOL}/market_chart?vs_currency={CURRENCY}&days=1&interval=minute'
+    response = requests.get(url)
+    data = response.json()
+    prices = data['prices'][-100:]  # آخرین 100 کندل
+    df = pd.DataFrame(prices, columns=['timestamp', 'price'])
+    df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+    return df
 
 # ======================= تابع تحلیل ======================
 def analyze():
     try:
-        ohlcv = exchange.fetch_ohlcv(SYMBOL, timeframe=TIMEFRAME, limit=CANDLE_LIMIT)
-        df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
-        df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
-
-        # محاسبه اندیکاتورها با ta
-        df['RSI'] = ta.momentum.RSIIndicator(df['close']).rsi()
-        macd = ta.trend.MACD(df['close'])
-        df['MACD'] = macd.macd()
-        df['MACD_signal'] = macd.macd_signal()
-        df['MA20'] = df['close'].rolling(window=20).mean()
-        df['MA50'] = df['close'].rolling(window=50).mean()
+        df = fetch_doge_data()
+        df['MA20'] = df['price'].rolling(window=20).mean()
+        df['MA50'] = df['price'].rolling(window=50).mean()
+        df['change'] = df['price'].pct_change()
+        df['RSI'] = 100 - (100 / (1 + df['change'].rolling(14).apply(lambda x: (x[x>0].sum() / abs(x[x<0].sum())) if abs(x[x<0].sum()) > 0 else 0)))
 
         latest = df.iloc[-1]
 
-        signal = "📈 تحلیل دوج کوین (DOGE/USDT):\n"
-        signal += f"قیمت فعلی: {latest['close']:.4f} دلار\n"
+        signal = "📈 تحلیل دوج کوین (CoinGecko):\n"
+        signal += f"قیمت فعلی: {latest['price']:.4f} دلار\n"
         signal += f"RSI: {latest['RSI']:.2f} => {'خرید' if latest['RSI'] < 30 else 'فروش' if latest['RSI'] > 70 else 'نرمال'}\n"
-        signal += f"MACD: {latest['MACD']:.4f}, سیگنال: {latest['MACD_signal']:.4f} => {'صعودی' if latest['MACD'] > latest['MACD_signal'] else 'نزولی'}\n"
         signal += f"MA20: {latest['MA20']:.4f}, MA50: {latest['MA50']:.4f} => {'روند صعودی' if latest['MA20'] > latest['MA50'] else 'روند نزولی'}"
 
         bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=signal)
@@ -54,4 +51,3 @@ if __name__ == '__main__':
     while True:
         analyze()
         time.sleep(INTERVAL)
-
