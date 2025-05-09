@@ -1,8 +1,9 @@
 import requests
 import pandas as pd
-import time
+import asyncio
 import logging
 from telegram import Bot
+from telegram.constants import ParseMode
 
 # ======================= تنظیمات =========================
 TELEGRAM_BOT_TOKEN = '7795930019:AAF7HXcw1iPyYc175yvNz4csvQjZz8tt9jI'
@@ -27,8 +28,8 @@ def fetch_doge_data():
     df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
     return df
 
-# ======================= تابع تحلیل ======================
-def analyze():
+# ======================= تابع تحلیل و ارسال پیام ======================
+async def analyze_and_send():
     try:
         df = fetch_doge_data()
         df['MA20'] = df['price'].rolling(window=20).mean()
@@ -38,20 +39,23 @@ def analyze():
 
         latest = df.iloc[-1]
 
-        signal = "📈 تحلیل دوج کوین (CoinGecko):\n"
-        signal += f"قیمت فعلی: {latest['price']:.4f} دلار\n"
-        signal += f"RSI: {latest['RSI']:.2f} => {'خرید' if latest['RSI'] < 30 else 'فروش' if latest['RSI'] > 70 else 'نرمال'}\n"
+        signal = "📈 <b>تحلیل دوج کوین (CoinGecko)</b>\n"
+        signal += f"قیمت فعلی: <b>{latest['price']:.4f}</b> دلار\n"
+        signal += f"RSI: <b>{latest['RSI']:.2f}</b> => {'خرید' if latest['RSI'] < 30 else 'فروش' if latest['RSI'] > 70 else 'نرمال'}\n"
         signal += f"MA20: {latest['MA20']:.4f}, MA50: {latest['MA50']:.4f} => {'روند صعودی' if latest['MA20'] > latest['MA50'] else 'روند نزولی'}"
 
-        bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=signal)
+        await bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=signal, parse_mode=ParseMode.HTML)
         logging.info("✅ پیام ارسال شد")
 
     except Exception as e:
         logging.error(f"❌ خطا در تحلیل: {e}")
 
-# ======================= اجرای مداوم =====================
+# ======================= اجرای مداوم ======================
+async def main_loop():
+    while True:
+        await analyze_and_send()
+        await asyncio.sleep(INTERVAL)
+
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
-    while True:
-        analyze()
-        time.sleep(INTERVAL)
+    asyncio.run(main_loop())
