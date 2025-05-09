@@ -14,10 +14,15 @@ INTERVAL = 240  # هر 4 دقیقه یک‌بار تحلیل انجام بشه
 
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 
-# ======================= تابع دریافت داده ======================
+# ======================= تابع دریافت داده (Binance) ======================
 def fetch_doge_data():
-    url = f'https://api.coingecko.com/api/v3/coins/{SYMBOL}/market_chart?vs_currency={CURRENCY}&days=1&interval=minutely'
-    response = requests.get(url)
+    url = 'https://api.binance.com/api/v3/klines'
+    params = {
+        'symbol': 'DOGEUSDT',
+        'interval': '1m',
+        'limit': 180
+    }
+    response = requests.get(url, params=params)
 
     try:
         data = response.json()
@@ -25,12 +30,10 @@ def fetch_doge_data():
         logging.error(f"❌ خطا در خواندن JSON: {e}")
         raise
 
-    logging.info(f"📦 پاسخ API: {data}")
+    if not isinstance(data, list) or not data:
+        raise ValueError("قیمت‌ها در پاسخ Binance پیدا نشد!")
 
-    if 'prices' not in data or not data['prices']:
-        raise ValueError("قیمت‌ها در پاسخ API پیدا نشد!")
-
-    prices = data['prices'][-180:]  # آخرین 180 کندل برای تحلیل پایدارتر
+    prices = [[int(item[0]), float(item[4])] for item in data]  # timestamp, close price
     df = pd.DataFrame(prices, columns=['timestamp', 'price'])
     df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
     return df
@@ -57,7 +60,7 @@ async def analyze_and_send():
         else:
             final_decision = '\nℹ️ <b>وضعیت خنثی، فعلاً وارد معامله نشوید</b>'
 
-        signal = "📈 <b>تحلیل بهینه دوج کوین (CoinGecko)</b>\n"
+        signal = "📈 <b>تحلیل بهینه دوج کوین (Binance)</b>\n"
         signal += f"قیمت فعلی: <b>{latest['price']:.4f}</b> دلار\n"
         signal += f"RSI: <b>{latest['RSI']:.2f}</b> => {rsi_signal}\n"
         signal += f"MA5: {latest['MA5']:.4f}, MA10: {latest['MA10']:.4f} => {trend_signal}"
