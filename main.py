@@ -7,7 +7,7 @@ from telegram import Bot
 
 # ======================= تنظیمات =========================
 TELEGRAM_BOT_TOKEN = 'YOUR_TELEGRAM_BOT_TOKEN'
-TELEGRAM_CHAT_ID = 'YOUR_TELEGRAM_CHAT_ID'
+TELEGRAM_CHAT_ID = '34776308'
 SYMBOL = 'DOGE/USDT'
 TIMEFRAME = '5m'
 CANDLE_LIMIT = 100
