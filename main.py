@@ -15,31 +15,25 @@ INTERVAL = 240  # هر 4 دقیقه یک‌بار تحلیل انجام بشه
 
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 
-# ======================= تابع دریافت داده از CoinMarketCap ======================
+# ======================= تابع دریافت داده از CoinMarketCap (نسخه رایگان) ======================
 def fetch_doge_data():
-    url = 'https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/historical'
+    url = 'https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest'
     headers = {
         'X-CMC_PRO_API_KEY': '7fa3b3bb-7d34-49e6-9c95-be070c350e35'
     }
     params = {
         'symbol': 'DOGE',
-        'convert': 'USD',
-        'interval': '1m',
-        'count': 180
+        'convert': 'USD'
     }
 
     for _ in range(3):
         try:
             response = requests.get(url, headers=headers, params=params)
             data = response.json()
-            quotes = data.get('data', {}).get('quotes', [])
-            if isinstance(quotes, list) and len(quotes) >= 100:
-                prices = [[int(pd.to_datetime(q['timestamp']).timestamp() * 1000), float(q['quote']['USD']['price'])] for q in quotes]
-                df = pd.DataFrame(prices, columns=['timestamp', 'price'])
-                df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
-                return df
-            else:
-                raise ValueError("داده کافی برای تحلیل دریافت نشد.")
+            price = data['data']['DOGE']['quote']['USD']['price']
+            timestamp = pd.to_datetime(data['status']['timestamp'])
+            df = pd.DataFrame([[timestamp, price]], columns=['timestamp', 'price'])
+            return df
         except Exception as e:
             logging.warning(f"⏳ تلاش مجدد برای دریافت داده از CoinMarketCap... {e}")
             time.sleep(10)
@@ -90,7 +84,6 @@ async def analyze_and_send():
         if bb_signal == 'خرید': total_signals += 1
         if latest['ADX'] > 25: total_signals += 1
 
-        # سیگنال کوتاه‌مدت
         if total_signals >= 4:
             signal += f"✅ <b>سیگنال خرید قوی - کوتاه‌مدت</b>\n"
             signal += f"🎯 پتانسیل سود ۱–۳٪ در ۵ تا ۳۰ دقیقه\n"
@@ -100,7 +93,6 @@ async def analyze_and_send():
             await bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=signal, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
             logging.info("✅ پیام کوتاه‌مدت ارسال شد")
 
-        # سیگنال بلندمدت
         total_long_signals = 0
         if rsi_signal == 'خرید': total_long_signals += 1
         if macd_signal == 'خرید': total_long_signals += 1
