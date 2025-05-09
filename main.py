@@ -10,7 +10,7 @@ TELEGRAM_BOT_TOKEN = '7795930019:AAF7HXcw1iPyYc175yvNz4csvQjZz8tt9jI'
 TELEGRAM_CHAT_ID = 34776308
 SYMBOL = 'dogecoin'
 CURRENCY = 'usd'
-INTERVAL = 300  # هر 300 ثانیه = 5 دقیقه یکبار تحلیل انجام بشه
+INTERVAL = 240  # هر 4 دقیقه یک‌بار تحلیل انجام بشه
 
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 
@@ -30,7 +30,7 @@ def fetch_doge_data():
     if 'prices' not in data or not data['prices']:
         raise ValueError("قیمت‌ها در پاسخ API پیدا نشد!")
 
-    prices = data['prices'][-100:]  # آخرین 100 کندل
+    prices = data['prices'][-180:]  # آخرین 180 کندل برای تحلیل پایدارتر
     df = pd.DataFrame(prices, columns=['timestamp', 'price'])
     df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
     return df
@@ -46,18 +46,18 @@ async def analyze_and_send():
 
         latest = df.iloc[-1]
 
-        rsi_signal = 'خرید' if latest['RSI'] < 30 else 'فروش' if latest['RSI'] > 70 else 'نرمال'
+        rsi_signal = 'خرید' if latest['RSI'] < 35 else 'فروش' if latest['RSI'] > 65 else 'نرمال'
         trend_signal = 'روند صعودی' if latest['MA5'] > latest['MA10'] else 'روند نزولی'
         final_decision = ''
 
         if rsi_signal == 'خرید' and trend_signal == 'روند صعودی':
-            final_decision = '\n✅ <b>سیگنال خرید قوی!</b>'
+            final_decision = '\n✅ <b>سیگنال خرید تایید شده - فرصت خرید کم‌ریسک</b>'
         elif rsi_signal == 'فروش' and trend_signal == 'روند نزولی':
-            final_decision = '\n⚠️ <b>احتمال ریزش، سیگنال فروش</b>'
+            final_decision = '\n⚠️ <b>سیگنال فروش - احتمال ریزش بالا</b>'
         else:
-            final_decision = '\nℹ️ <b>وضعیت خنثی، بهتر است صبر کنید</b>'
+            final_decision = '\nℹ️ <b>وضعیت خنثی، فعلاً وارد معامله نشوید</b>'
 
-        signal = "📈 <b>تحلیل سریع دوج کوین (CoinGecko)</b>\n"
+        signal = "📈 <b>تحلیل بهینه دوج کوین (CoinGecko)</b>\n"
         signal += f"قیمت فعلی: <b>{latest['price']:.4f}</b> دلار\n"
         signal += f"RSI: <b>{latest['RSI']:.2f}</b> => {rsi_signal}\n"
         signal += f"MA5: {latest['MA5']:.4f}, MA10: {latest['MA10']:.4f} => {trend_signal}"
