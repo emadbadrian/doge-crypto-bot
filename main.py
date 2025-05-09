@@ -15,31 +15,36 @@ INTERVAL = 240  # هر 4 دقیقه یک‌بار تحلیل انجام بشه
 
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 
-# ======================= تابع دریافت داده (Binance) ======================
+# ======================= تابع دریافت داده از CoinMarketCap ======================
 def fetch_doge_data():
-    url = 'https://api.binance.com/api/v3/klines'
+    url = 'https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/historical'
+    headers = {
+        'X-CMC_PRO_API_KEY': '7fa3b3bb-7d34-49e6-9c95-be070c350e35'
+    }
     params = {
-        'symbol': 'DOGEUSDT',
+        'symbol': 'DOGE',
+        'convert': 'USD',
         'interval': '1m',
-        'limit': 180
+        'count': 180
     }
 
-    for _ in range(3):  # تا ۳ بار تلاش کنه
+    for _ in range(3):
         try:
-            response = requests.get(url, params=params)
+            response = requests.get(url, headers=headers, params=params)
             data = response.json()
-            if isinstance(data, list) and len(data) >= 50:
-                prices = [[int(item[0]), float(item[4])] for item in data]
+            quotes = data.get('data', {}).get('quotes', [])
+            if isinstance(quotes, list) and len(quotes) >= 100:
+                prices = [[int(pd.to_datetime(q['timestamp']).timestamp() * 1000), float(q['quote']['USD']['price'])] for q in quotes]
                 df = pd.DataFrame(prices, columns=['timestamp', 'price'])
                 df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
                 return df
             else:
                 raise ValueError("داده کافی برای تحلیل دریافت نشد.")
         except Exception as e:
-            logging.warning(f"⏳ تلاش مجدد برای دریافت داده از Binance... {e}")
+            logging.warning(f"⏳ تلاش مجدد برای دریافت داده از CoinMarketCap... {e}")
             time.sleep(10)
 
-    raise ValueError("قیمت‌ها در پاسخ Binance پیدا نشد!")
+    raise ValueError("قیمت‌ها در پاسخ CoinMarketCap پیدا نشد!")
 
 # ======================= تابع تحلیل و ارسال پیام ======================
 async def analyze_and_send():
@@ -49,6 +54,8 @@ async def analyze_and_send():
         df['MA10'] = df['price'].rolling(window=10).mean()
         df['EMA20'] = df['price'].ewm(span=20, adjust=False).mean()
         df['EMA50'] = df['price'].ewm(span=50, adjust=False).mean()
+        df['EMA100'] = df['price'].ewm(span=100, adjust=False).mean()
+        df['EMA200'] = df['price'].ewm(span=200, adjust=False).mean()
 
         df['change'] = df['price'].pct_change()
         df['RSI'] = 100 - (100 / (1 + df['change'].rolling(14).apply(lambda x: (x[x>0].sum() / abs(x[x<0].sum())) if abs(x[x<0].sum()) > 0 else 0)))
@@ -71,36 +78,41 @@ async def analyze_and_send():
         atr_signal = 'نوسان بالا' if latest['ATR'] > df['ATR'].mean() else 'نوسان کم'
         adx_signal = 'قدرت بالا' if latest['ADX'] > 25 else 'ضعیف'
 
+        long_trend_signal = 'صعودی' if latest['EMA50'] > latest['EMA100'] and latest['EMA100'] > latest['EMA200'] else 'نزولی'
+
         signal = ""
+        total_signals = 0
+        chart_link = f"https://www.tradingview.com/symbols/DOGEUSD/"
+
+        if rsi_signal == 'خرید': total_signals += 1
+        if trend_signal == 'صعودی': total_signals += 1
+        if macd_signal == 'خرید': total_signals += 1
+        if bb_signal == 'خرید': total_signals += 1
+        if latest['ADX'] > 25: total_signals += 1
 
         # سیگنال کوتاه‌مدت
-        if rsi_signal == 'خرید' and trend_signal == 'صعودی' and macd_signal == 'خرید' and bb_signal == 'خرید' and latest['ADX'] > 25:
-            signal += "📈 <b>تحلیل دوج کوین (Binance)</b>\n"
-            signal += f"قیمت فعلی: <b>{latest['price']:.4f}</b> دلار\n"
-            signal += f"RSI: <b>{latest['RSI']:.2f}</b> => {rsi_signal}\n"
-            signal += f"MA5: {latest['MA5']:.4f}, MA10: {latest['MA10']:.4f} => روند {trend_signal}\n"
-            signal += f"MACD: {latest['MACD']:.4f}, Signal: {latest['MACD_signal']:.4f} => {macd_signal}\n"
-            signal += f"Bollinger: [{latest['lower_band']:.4f} - {latest['upper_band']:.4f}] => {bb_signal}\n"
-            signal += f"ATR: <b>{latest['ATR']:.4f}</b> => {atr_signal}\n"
-            signal += f"ADX: <b>{latest['ADX']:.2f}</b> => {adx_signal}\n"
-            signal += '\n✅ <b>سیگنال خرید قوی - کوتاه‌مدت</b>\n🎯 پتانسیل سود ۱–۳٪ در ۵ تا ۳۰ دقیقه\n💡 مناسب برای ورود سریع و خروج زودهنگام."
-
-            await bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=signal, parse_mode=ParseMode.HTML)
+        if total_signals >= 4:
+            signal += f"✅ <b>سیگنال خرید قوی - کوتاه‌مدت</b>\n"
+            signal += f"🎯 پتانسیل سود ۱–۳٪ در ۵ تا ۳۰ دقیقه\n"
+            signal += f"📊 اندیکاتورهای موافق: {total_signals} / 5\n"
+            signal += f"📉 سطح اطمینان: {'بالا' if total_signals == 5 else 'متوسط'}\n"
+            signal += f"🔗 <a href='{chart_link}'>نمایش نمودار لحظه‌ای</a>"
+            await bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=signal, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
             logging.info("✅ پیام کوتاه‌مدت ارسال شد")
 
         # سیگنال بلندمدت
-        elif rsi_signal == 'خرید' and (macd_signal == 'خرید' or trend_signal == 'صعودی'):
-            signal += "📈 <b>تحلیل دوج کوین (Binance)</b>\n"
-            signal += f"قیمت فعلی: <b>{latest['price']:.4f}</b> دلار\n"
-            signal += f"RSI: <b>{latest['RSI']:.2f}</b> => {rsi_signal}\n"
-            signal += f"MA5: {latest['MA5']:.4f}, MA10: {latest['MA10']:.4f} => روند {trend_signal}\n"
-            signal += f"MACD: {latest['MACD']:.4f}, Signal: {latest['MACD_signal']:.4f} => {macd_signal}\n"
-            signal += f"Bollinger: [{latest['lower_band']:.4f} - {latest['upper_band']:.4f}] => {bb_signal}\n"
-            signal += f"ATR: <b>{latest['ATR']:.4f}</b> => {atr_signal}\n"
-            signal += f"ADX: <b>{latest['ADX']:.2f}</b> => {adx_signal}\n"
-            signal += '\n✅ <b>سیگنال خرید احتمالی - بلندمدت</b>\n🎯 پتانسیل سود ۳–۱۰٪ طی ۳ تا ۲۴ ساعت\n📌 مناسب برای بررسی بیشتر و ورود با مدیریت ریسک."
+        total_long_signals = 0
+        if rsi_signal == 'خرید': total_long_signals += 1
+        if macd_signal == 'خرید': total_long_signals += 1
+        if long_trend_signal == 'صعودی': total_long_signals += 1
 
-            await bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=signal, parse_mode=ParseMode.HTML)
+        if total_long_signals >= 2:
+            signal = f"✅ <b>سیگنال خرید احتمالی - بلندمدت</b>\n"
+            signal += f"🎯 پتانسیل سود ۳–۱۰٪ طی ۳ تا ۲۴ ساعت\n"
+            signal += f"📊 اندیکاتورهای موافق: {total_long_signals} / 3\n"
+            signal += f"📉 سطح اطمینان: {'بالا' if total_long_signals == 3 else 'متوسط'}\n"
+            signal += f"🔗 <a href='{chart_link}'>نمایش نمودار لحظه‌ای</a>"
+            await bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=signal, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
             logging.info("✅ پیام بلندمدت ارسال شد")
 
     except Exception as e:
