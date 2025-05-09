@@ -5,8 +5,8 @@ import logging
 from telegram import Bot
 
 # ======================= تنظیمات =========================
-TELEGRAM_BOT_TOKEN = 'YOUR_TELEGRAM_BOT_TOKEN'
-TELEGRAM_CHAT_ID = 'YOUR_TELEGRAM_CHAT_ID'
+TELEGRAM_BOT_TOKEN = '7795930019:AAF7HXcw1iPyYc175yvNz4csvQjZz8tt9jI'
+TELEGRAM_CHAT_ID = '34776308'
 SYMBOL = 'dogecoin'
 CURRENCY = 'usd'
 INTERVAL = 300  # هر 300 ثانیه = 5 دقیقه یکبار تحلیل انجام بشه
@@ -18,6 +18,10 @@ def fetch_doge_data():
     url = f'https://api.coingecko.com/api/v3/coins/{SYMBOL}/market_chart?vs_currency={CURRENCY}&days=1&interval=minute'
     response = requests.get(url)
     data = response.json()
+
+    if 'prices' not in data:
+        raise ValueError("قیمت‌ها در پاسخ API پیدا نشد!")
+
     prices = data['prices'][-100:]  # آخرین 100 کندل
     df = pd.DataFrame(prices, columns=['timestamp', 'price'])
     df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
