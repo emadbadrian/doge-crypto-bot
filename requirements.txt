@@ -1,4 +1,4 @@
 ccxt
 pandas
-ta-lib
+ta
 python-telegram-bot
