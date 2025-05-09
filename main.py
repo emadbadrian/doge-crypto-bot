@@ -7,7 +7,7 @@ from telegram.constants import ParseMode
 
 # ======================= تنظیمات =========================
 TELEGRAM_BOT_TOKEN = '7795930019:AAF7HXcw1iPyYc175yvNz4csvQjZz8tt9jI'
-TELEGRAM_CHAT_ID = '34776308'
+TELEGRAM_CHAT_ID = 34776308
 SYMBOL = 'dogecoin'
 CURRENCY = 'usd'
 INTERVAL = 300  # هر 300 ثانیه = 5 دقیقه یکبار تحلیل انجام بشه
