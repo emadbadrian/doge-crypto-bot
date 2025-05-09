@@ -18,9 +18,16 @@ bot = Bot(token=TELEGRAM_BOT_TOKEN)
 def fetch_doge_data():
     url = f'https://api.coingecko.com/api/v3/coins/{SYMBOL}/market_chart?vs_currency={CURRENCY}&days=30&interval=hourly'
     response = requests.get(url)
-    data = response.json()
 
-    if 'prices' not in data:
+    try:
+        data = response.json()
+    except Exception as e:
+        logging.error(f"❌ خطا در خواندن JSON: {e}")
+        raise
+
+    logging.info(f"📦 پاسخ API: {data}")
+
+    if 'prices' not in data or not data['prices']:
         raise ValueError("قیمت‌ها در پاسخ API پیدا نشد!")
 
     prices = data['prices'][-100:]  # آخرین 100 کندل
